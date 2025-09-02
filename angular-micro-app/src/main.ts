@@ -2,59 +2,34 @@ import { NgZone, ApplicationRef } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
-import './public-path';
 
-let appInstance: ApplicationRef | null = null;
+bootstrapApplication(App, appConfig)
+  .then((appRef: ApplicationRef) => {
+    console.log('[Angular微应用] 应用启动成功');
 
-function render(props: any = {}) {
-  const { container } = props;
-
-  return bootstrapApplication(App, appConfig)
-    .then((appRef) => {
-      appInstance = appRef;
-      console.log('[angular微应用] 应用已挂载', container);
-      return appRef;
-    })
-    .catch((err) => console.error('[angular微应用] 启动失败:', err));
-}
-
-// 独立运行时
-if (!(window as any).__POWERED_BY_QIANKUN__) {
-  render();
-}
-
-// 将生命周期函数挂载到全局
-(window as any)['angular-micro-app'] = {
-  async bootstrap() {
-    console.log('[angular微应用] bootstrap');
-  },
-  async mount(props: any) {
-    console.log('[angular微应用] mount', props);
-    return render(props);
-  },
-  async unmount(props: any) {
-    console.log('[angular微应用] unmount', props);
-    if (appInstance) {
-      appInstance.destroy();
-      appInstance = null;
+    // 向主应用发送就绪消息
+    if (window.parent !== window) {
+      window.parent.postMessage(
+        {
+          type: 'MICRO_APP_READY',
+          appName: 'angular-micro-app',
+        },
+        '*'
+      );
     }
-  },
-};
 
-// 导出 qiankun 生命周期函数（兼容性）
-export async function bootstrap() {
-  console.log('[angular微应用] bootstrap');
-}
+    // 监听主应用消息
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'INIT_DATA') {
+        console.log('[Angular微应用] 收到主应用初始化数据:', event.data.data);
+      }
+    };
 
-export async function mount(props: any) {
-  console.log('[angular微应用] mount', props);
-  return render(props);
-}
+    window.addEventListener('message', handleMessage);
 
-export async function unmount(props: any) {
-  console.log('[angular微应用] unmount', props);
-  if (appInstance) {
-    appInstance.destroy();
-    appInstance = null;
-  }
-}
+    // 应用销毁时清理
+    appRef.onDestroy(() => {
+      window.removeEventListener('message', handleMessage);
+    });
+  })
+  .catch((err) => console.error('[Angular微应用] 启动失败:', err));

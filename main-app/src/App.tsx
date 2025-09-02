@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Layout, Menu, Spin, message, Switch, Badge, Dropdown } from "antd";
+import { Layout, Menu, message, Switch, Badge, Dropdown } from "antd";
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,7 +7,6 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
-import { registerMicroApps, start, setDefaultMountApp } from "qiankun";
 import {
   UserOutlined,
   ShoppingOutlined,
@@ -29,31 +28,30 @@ import "./App.css";
 
 const { Header, Sider, Content } = Layout;
 
-// 微应用配置
+// 微应用配置 - 使用 iframe 方式
 const microApps = [
   {
     name: "react-micro-app",
-    entry: "//localhost:3001",
-    container: "#subapp-viewport",
-    activeRule: "/user",
+    url: "http://localhost:3001",
+    path: "/user",
+    title: "用户管理",
   },
   {
     name: "vue-micro-app",
-    entry: "//localhost:3002",
-    container: "#subapp-viewport",
-    activeRule: "/product",
+    url: "http://localhost:3002",
+    path: "/product",
+    title: "商品管理",
   },
   {
     name: "angular-micro-app",
-    entry: "//localhost:3003",
-    container: "#subapp-viewport",
-    activeRule: "/order",
+    url: "http://localhost:3003",
+    path: "/order",
+    title: "订单管理",
   },
 ];
 
 function MainContent() {
   const location = useLocation();
-  const [loading, setLoading] = useState(false);
   const [globalState, setLocalGlobalState] = useState<GlobalState>({
     user: { id: 1, name: "管理员", role: "admin" },
     theme: "light",
@@ -83,44 +81,27 @@ function MainContent() {
       }
     });
 
-    // 注册微应用
-    registerMicroApps(microApps, {
-      beforeLoad: (app) => {
-        console.log("[qiankun] before load", app.name);
-        setLoading(true);
-        return Promise.resolve();
-      },
-      beforeMount: (app) => {
-        console.log("[qiankun] before mount", app.name);
-        return Promise.resolve();
-      },
-      afterMount: (app) => {
-        console.log("[qiankun] after mount", app.name);
-        setLoading(false);
-        return Promise.resolve();
-      },
-      beforeUnmount: (app) => {
-        console.log("[qiankun] before unmount", app.name);
-        return Promise.resolve();
-      },
-      afterUnmount: (app) => {
-        console.log("[qiankun] after unmount", app.name);
-        return Promise.resolve();
-      },
-    });
+    // iframe 通信监听
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.origin !== window.location.origin &&
+        !event.origin.includes("localhost")
+      ) {
+        return;
+      }
 
-    // 启动 qiankun
-    start({
-      prefetch: false, // 禁用预加载
-      sandbox: {
-        strictStyleIsolation: true, // 严格的样式隔离
-      },
-    });
+      console.log("[主应用] 收到微应用消息:", event.data);
 
-    // 设置默认子应用
-    setDefaultMountApp("/user");
+      if (event.data.type === "MICRO_APP_READY") {
+        console.log(`[主应用] ${event.data.appName} 已准备就绪`);
+      }
+    };
 
-    return unsubscribe;
+    window.addEventListener("message", handleMessage);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
   }, []);
 
   const menuItems = [
@@ -151,13 +132,12 @@ function MainContent() {
       return (
         <div style={{ padding: "24px", textAlign: "center" }}>
           <h1>欢迎来到微前端主应用</h1>
-          <p>这是一个基于 qiankun 的微前端示例项目</p>
+          <p>这是一个基于 iframe + postMessage 的微前端示例项目</p>
           <div style={{ marginTop: "32px", textAlign: "left" }}>
             <h3>项目架构：</h3>
             <ul>
               <li>
-                <strong>主应用</strong>：React + TypeScript +
-                qiankun（端口：3000）
+                <strong>主应用</strong>：React + TypeScript（端口：3000）
               </li>
               <li>
                 <strong>用户管理微应用</strong>：React +
@@ -177,13 +157,46 @@ function MainContent() {
               <li>✅ 技术栈无关：每个微应用可以使用不同的框架</li>
               <li>✅ 独立开发：各个团队可以独立开发自己的微应用</li>
               <li>✅ 独立部署：每个微应用可以独立部署和版本管理</li>
-              <li>✅ 样式隔离：避免不同应用之间的样式冲突</li>
-              <li>✅ 沙箱隔离：JavaScript 执行环境隔离</li>
+              <li>✅ 完全隔离：iframe 天然提供样式和 JS 隔离</li>
+              <li>✅ 简单稳定：没有复杂的构建配置和兼容性问题</li>
             </ul>
           </div>
         </div>
       );
     }
+
+    // 渲染微应用 iframe
+    const currentApp = microApps.find((app) => app.path === location.pathname);
+    if (currentApp) {
+      return (
+        <iframe
+          src={currentApp.url}
+          style={{
+            width: "100%",
+            height: "calc(100vh - 64px - 48px)", // 减去 header 和 padding 高度
+            border: "none",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+          title={currentApp.title}
+          onLoad={(e) => {
+            console.log(`[主应用] ${currentApp.name} iframe 加载完成`);
+            // 向微应用发送初始化数据
+            const iframe = e.target as HTMLIFrameElement;
+            if (iframe.contentWindow) {
+              iframe.contentWindow.postMessage(
+                {
+                  type: "INIT_DATA",
+                  data: globalState,
+                },
+                currentApp.url
+              );
+            }
+          }}
+        />
+      );
+    }
+
     return null;
   };
 
@@ -254,10 +267,7 @@ function MainContent() {
               position: "relative",
             }}
           >
-            <Spin spinning={loading} tip="加载微应用中...">
-              {renderMainContent()}
-              <div id="subapp-viewport" style={{ minHeight: "400px" }}></div>
-            </Spin>
+            {renderMainContent()}
           </Content>
         </Layout>
       </Layout>

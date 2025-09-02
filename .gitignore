@@ -3,3 +3,5 @@
 */logs
 */dist
 */.vscode
+
+.DS_Store

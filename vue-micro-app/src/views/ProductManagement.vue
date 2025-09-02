@@ -324,7 +324,9 @@ const handleOk = async () => {
 .product-management {
   padding: 24px;
   background: #fff;
-  min-height: 100vh;
+  height: 100%;
+  width: 100%;
+  margin: 0;
 }
 
 .product-header {
@@ -339,24 +341,7 @@ const handleOk = async () => {
 .product-header h2 {
   margin: 0;
   color: #52c41a;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .product-management {
-    padding: 16px;
-  }
-  
-  .product-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  
-  .product-header h2 {
-    font-size: 18px;
-  }
 }
 </style>

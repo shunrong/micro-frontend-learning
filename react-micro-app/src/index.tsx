@@ -1,46 +1,48 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
-import "./public-path";
 
-function render(props?: any) {
-  const { container } = props || {};
-  const root = ReactDOM.createRoot(
-    container
-      ? container.querySelector("#root")
-      : document.getElementById("root")
-  );
+function AppWithCommunication() {
+  useEffect(() => {
+    // 向主应用发送就绪消息
+    if (window.parent !== window) {
+      window.parent.postMessage(
+        {
+          type: "MICRO_APP_READY",
+          appName: "react-micro-app",
+        },
+        "*"
+      );
+    }
 
-  root.render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+    // 监听主应用消息
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === "INIT_DATA") {
+        console.log("[React微应用] 收到主应用初始化数据:", event.data.data);
+      }
+    };
 
-  return root;
+    window.addEventListener("message", handleMessage);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
+
+  return <App />;
 }
 
-// 独立运行时，直接启动应用
-if (!(window as any).__POWERED_BY_QIANKUN__) {
-  render();
-}
+const root = ReactDOM.createRoot(
+  document.getElementById("root") as HTMLElement
+);
 
-// 导出 qiankun 生命周期函数
-export async function bootstrap() {
-  console.log("[react微应用] bootstrap");
-}
-
-export async function mount(props: any) {
-  console.log("[react微应用] mount", props);
-  render(props);
-}
-
-export async function unmount(props: any) {
-  console.log("[react微应用] unmount", props);
-  // 这里可以做一些清理工作
-}
+root.render(
+  <React.StrictMode>
+    <AppWithCommunication />
+  </React.StrictMode>
+);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
